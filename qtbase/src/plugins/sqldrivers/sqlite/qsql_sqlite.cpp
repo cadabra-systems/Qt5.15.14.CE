@@ -66,6 +66,8 @@
 #include <sqlite3.h>
 #include <functional>
 
+#include "sqlite3_unicode.h"
+
 Q_DECLARE_OPAQUE_POINTER(sqlite3*)
 Q_DECLARE_METATYPE(sqlite3*)
 
@@ -117,6 +119,31 @@ static QSqlError qMakeError(sqlite3 *access, const QString &descr, QSqlError::Er
                      QString(reinterpret_cast<const QChar *>(sqlite3_errmsg16(access))),
                      type, QString::number(errorCode));
 }
+
+class SQLiteUnicodeSingleton
+{
+    public:
+        static SQLiteUnicodeSingleton& Instance()
+        {
+            static SQLiteUnicodeSingleton instance;
+            return instance;
+        }
+
+    private:
+        SQLiteUnicodeSingleton()
+        {
+            sqlite3_unicode_load();
+        }
+
+        SQLiteUnicodeSingleton(const SQLiteUnicodeSingleton&) = delete;
+
+        ~SQLiteUnicodeSingleton()
+        {
+            sqlite3_unicode_free();
+        }
+
+        SQLiteUnicodeSingleton& operator=(const SQLiteUnicodeSingleton&) = delete;
+};
 
 class QSQLiteResultPrivate;
 
@@ -724,6 +751,7 @@ bool QSQLiteDriver::open(const QString & db, const QString &, const QString &, c
     bool sharedCache = false;
     bool openReadOnlyOption = false;
     bool openUriOption = false;
+    bool customUnicode = false;
 #if QT_CONFIG(regularexpression)
     static const QLatin1String regexpConnectOption = QLatin1String("QSQLITE_ENABLE_REGEXP");
     bool defineRegexp = false;
@@ -747,6 +775,8 @@ bool QSQLiteDriver::open(const QString & db, const QString &, const QString &, c
             openUriOption = true;
         } else if (option == QLatin1String("QSQLITE_ENABLE_SHARED_CACHE")) {
             sharedCache = true;
+        } else if (option == QLatin1String("QSQLITE_ENABLE_UNICODE")) {
+            customUnicode = true;
         }
 #if QT_CONFIG(regularexpression)
         else if (option.startsWith(regexpConnectOption)) {
@@ -786,6 +816,10 @@ bool QSQLiteDriver::open(const QString & db, const QString &, const QString &, c
                                        NULL, &_q_regexp_cleanup);
         }
 #endif
+        if (customUnicode) {
+            SQLiteUnicodeSingleton::Instance();
+            sqlite3_unicode_init(d->access);
+        }
         return true;
     } else {
         setLastError(qMakeError(d->access, tr("Error opening database"),

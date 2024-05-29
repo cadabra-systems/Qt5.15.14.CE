@@ -1,7 +1,8 @@
 TARGET = qsqlite
 
 HEADERS += $$PWD/qsql_sqlite_p.h
-SOURCES += $$PWD/qsql_sqlite.cpp $$PWD/smain.cpp
+SOURCES += $$PWD/qsql_sqlite.cpp $$PWD/sqlite3_unicode.c $$PWD/smain.cpp
+DEFINES += SQLITE_ENABLE_UNICODE SQLITE_CORE
 
 include($$OUT_PWD/../qtsqldrivers-config.pri)
 QT_FOR_CONFIG += sqldrivers-private
