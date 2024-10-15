@@ -36,6 +36,7 @@ jumbo_static_library("devtools_protocol") {
 
   deps = [
     "//base",
+    "//components/spellcheck:buildflags",
     "//content/browser/devtools:devtools_background_services_proto",
     "//content/browser/devtools:protocol_sources",
     "//content/common:buildflags",
