@@ -3,6 +3,7 @@
 #include <mapbox/geometry/geometry.hpp>
 #include <mapbox/geometry/point_arithmetic.hpp>
 #include <mapbox/geometry/for_each_point.hpp>
+#include <cstdint>
 
 namespace mbgl {
 
