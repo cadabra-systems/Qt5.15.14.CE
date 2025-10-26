@@ -51,9 +51,6 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
 
-import org.kde.necessitas.ministro.IMinistro;
-import org.kde.necessitas.ministro.IMinistroCallback;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.lang.reflect.Method;
@@ -93,7 +90,6 @@ public abstract class QtLoader {
     /// Ministro server parameter keys
     public static final String REQUIRED_MODULES_KEY = "required.modules";
     public static final String APPLICATION_TITLE_KEY = "application.title";
-    public static final String MINIMUM_MINISTRO_API_KEY = "minimum.ministro.api";
     public static final String MINIMUM_QT_VERSION_KEY = "minimum.qt.version";
     public static final String SOURCES_KEY = "sources";               // needs MINISTRO_API_LEVEL >=3 !!!
     // Use this key to specify any 3rd party sources urls
@@ -168,10 +164,6 @@ public abstract class QtLoader {
     protected void runOnUiThread(Runnable run) {
         run.run();
     }
-    protected void downloadUpgradeMinistro(String msg)
-    {
-        Log.e(QtApplication.QtTAG, msg);
-    }
 
     protected abstract String loaderClassName();
     protected abstract Class<?> contextClassName();
@@ -219,11 +211,6 @@ public abstract class QtLoader {
         try {
             final int errorCode = loaderParams.getInt(ERROR_CODE_KEY);
             if (errorCode != 0) {
-                if (errorCode == INCOMPATIBLE_MINISTRO_VERSION) {
-                    downloadUpgradeMinistro(loaderParams.getString(ERROR_MESSAGE_KEY));
-                    return;
-                }
-
                 // fatal error, show the error and quit
                 AlertDialog errorDialog = new AlertDialog.Builder(m_context).create();
                 errorDialog.setMessage(loaderParams.getString(ERROR_MESSAGE_KEY));
@@ -294,73 +281,6 @@ public abstract class QtLoader {
             });
             errorDialog.show();
         }
-    }
-
-    private ServiceConnection m_ministroConnection=new ServiceConnection() {
-        private IMinistro m_service = null;
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder service)
-        {
-            m_service = IMinistro.Stub.asInterface(service);
-            try {
-                if (m_service != null) {
-                    Bundle parameters = new Bundle();
-                    parameters.putStringArray(REQUIRED_MODULES_KEY, (String[]) m_qtLibs.toArray());
-                    parameters.putString(APPLICATION_TITLE_KEY, getTitle());
-                    parameters.putInt(MINIMUM_MINISTRO_API_KEY, MINISTRO_API_LEVEL);
-                    parameters.putInt(MINIMUM_QT_VERSION_KEY, QT_VERSION);
-                    parameters.putString(ENVIRONMENT_VARIABLES_KEY, ENVIRONMENT_VARIABLES);
-                    if (APPLICATION_PARAMETERS != null)
-                        parameters.putString(APPLICATION_PARAMETERS_KEY, APPLICATION_PARAMETERS);
-                    parameters.putStringArray(SOURCES_KEY, m_sources);
-                    parameters.putString(REPOSITORY_KEY, m_repository);
-                    if (QT_ANDROID_THEMES != null)
-                        parameters.putStringArray(ANDROID_THEMES_KEY, QT_ANDROID_THEMES);
-                    m_service.requestLoader(m_ministroCallback, parameters);
-                }
-            } catch (RemoteException e) {
-                e.printStackTrace();
-            }
-        }
-
-        private IMinistroCallback m_ministroCallback = new IMinistroCallback.Stub() {
-            // this function is called back by Ministro.
-            @Override
-            public void loaderReady(final Bundle loaderParams) throws RemoteException {
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        m_context.unbindService(m_ministroConnection);
-                        loadApplication(loaderParams);
-                    }
-                });
-            }
-        };
-
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
-            m_service = null;
-        }
-    };
-
-    protected void ministroNotFound()
-    {
-        AlertDialog errorDialog = new AlertDialog.Builder(m_context).create();
-
-        if (m_contextInfo.metaData.containsKey("android.app.ministro_not_found_msg"))
-            errorDialog.setMessage(m_contextInfo.metaData.getString("android.app.ministro_not_found_msg"));
-        else
-            errorDialog.setMessage("Can't find Ministro service.\nThe application can't start.");
-
-        errorDialog.setButton(Dialog.BUTTON_POSITIVE,
-                              m_context.getResources().getString(android.R.string.ok),
-                              new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                finish();
-            }
-        });
-        errorDialog.show();
     }
 
     public void startApp(final boolean firstStart)
@@ -511,23 +431,6 @@ public abstract class QtLoader {
 
                 loadApplication(loaderParams);
                 return;
-            }
-
-            try {
-                if (!m_context.bindService(new Intent(org.kde.necessitas.ministro.IMinistro.class.getCanonicalName()),
-                        m_ministroConnection,
-                        Context.BIND_AUTO_CREATE)) {
-                    throw new SecurityException("");
-                }
-            } catch (Exception e) {
-                if (firstStart) {
-                    String msg = "This application requires Ministro service. Would you like to install it?";
-                    if (m_contextInfo.metaData.containsKey("android.app.ministro_needed_msg"))
-                        msg = m_contextInfo.metaData.getString("android.app.ministro_needed_msg");
-                    downloadUpgradeMinistro(msg);
-                } else {
-                    ministroNotFound();
-                }
             }
         } catch (Exception e) {
             Log.e(QtApplication.QtTAG, "Can't create main activity", e);
